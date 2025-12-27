@@ -1,0 +1,4 @@
+(library
+ (name hardcaml_solutions)
+ (public_name hardcaml_solutions)
+ (libraries hardcaml))

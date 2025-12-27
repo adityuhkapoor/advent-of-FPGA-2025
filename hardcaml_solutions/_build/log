@@ -1,0 +1,16 @@
+# dune build
+# OCAMLPARAM: unset
+# Shared cache: enabled-except-user-rules
+# Shared cache location: /home/adityuhkapoor/.cache/dune/db
+# Workspace root:
+# /home/adityuhkapoor/projects/hardcaml_test/advent-of-FPGA-2025/advent-of-FPGA-2025/hardcaml_solutions
+# Auto-detected concurrency: 12
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; fdo_target_exe = None
+#  ; build_dir = In_build_dir "default"
+#  ; instrument_with = []
+#  }
