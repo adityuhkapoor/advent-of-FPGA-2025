@@ -1,0 +1,4 @@
+(executable
+ (name acc_sim)
+ (modules acc_sim)
+ (libraries core hardcaml hardcaml_waveterm day01))

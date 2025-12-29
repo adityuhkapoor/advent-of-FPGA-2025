@@ -37,7 +37,7 @@ module Zero_detector = struct
     let state_w = 9 in
     let r =
       Reg_spec.override
-        (Reg_spec.create () ~clock:i.clk)
+        (Reg_spec.create ~clock:i.clk ())
         ~reset:i.reset
         ~reset_to:(of_int ~width:state_w 50)
     in
@@ -73,15 +73,15 @@ module Accumulator = struct
     [@@deriving sexp_of, hardcaml]
   end
 
-  let create (_scope : Scope.t) (i : _ I.t) : _ O.t =
-    let r =
-      Reg_spec.override
-        (Reg_spec.create ~clock:i.clk ~reset:i.reset ())
-        ~reset_to:(zero width)
-    in
-
-    let count = reg_fb r ~enable:i.inc ~width ~f:(fun q -> q +:. 1) in
-    { O.count }
+  let create (_scope : Scope.t) (i : _ I.t) = 
+    { O.count =
+      reg_fb 
+        (Reg_spec.create ~clock:i.clk ~clear:i.reset ())
+        ~enable:i.inc
+        ~width:width
+        ~f:(fun d -> d +:. 1)
+    }
+  ;;
 end
 
 module Top = struct
