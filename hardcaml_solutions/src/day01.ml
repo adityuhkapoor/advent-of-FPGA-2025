@@ -4,164 +4,124 @@ open! Signal
 
 module Zero_detector = struct
   module I = struct
-    type 'a t = {
-      clk: 'a;
-      reset: 'a;
-      enable: 'a;
-      norm_amount: 'a [@bits 7]
-    } [@@deriving hardcaml]
-  end
-  module O = struct
-    type 'a t = {
-      is_zero: 'a
-    } [@@deriving hardcaml]
-  end
-
-  let create (_scope : Scope.t)
-  ({
-    clk;
-    reset;
-    enable;
-    norm_amount;
-  }: _ I.t): _ O.t =
-    let open Always in
-    let spec = Reg_spec.create ~clock:clk () in 
-    (* defines common register template for future registers 
-    to come using common clock assumption*)
-
-    let state = Variable.reg spec ~width:7 in
-    let zero_sig = Variable.reg spec ~width:1 in
-
-    let sum = (uresize state.value ~width:8) +: (uresize norm_amount ~width:8) in
-    (* Potential cases where state + next state >= 100. To work around this for part 1,
-    we take the sum in a separate variable of width 8. If greater than >= 100, sum = sum- 100*)
-    let ge_100 = sum >: (of_int ~width:8 99) in
-    let next_state_8 = mux2 ge_100 (sum -: (of_int ~width:8 100)) sum in
-    let next_state = uresize next_state_8 ~width:7 in
-
-    compile
-    [
-      zero_sig <-- gnd;
-      if_ reset [
-        state <--. 50;
-        zero_sig <-- gnd;
-      ]
-      [
-        when_ enable [ when_ (next_state ==:. 0) [ zero_sig <-- vdd ]
-              ; state <-- next_state
-              ]
-        ]
-      ];
-
-      {
-        is_zero = zero_sig.value
+    type 'a t =
+      { clk    : 'a
+      ; reset  : 'a
+      ; valid  : 'a
+      ; amount : 'a [@bits 7]
       }
-
-;;
-end
-    
-module Part_one_input_normalizer = struct
-  module I = struct
-    type 'a t = { 
-      is_r : 'a; 
-      amount : 'a [@bits 12]
-       } [@@deriving hardcaml]
+    [@@deriving sexp_of, hardcaml]
   end
 
   module O = struct
-    type 'a t = { 
-      norm_amount : 'a [@bits 7] 
-      } [@@deriving hardcaml]
+    type 'a t =
+      { is_zero    : 'a
+      ; next_state : 'a [@bits 9]
+      }
+    [@@deriving sexp_of, hardcaml]
   end
 
-  let create (_scope : Scope.t) ({ 
-    is_r; 
-    amount
-     } : _ I.t) : _ O.t =
-    let open Always in
+  let ge_sub_once a b = mux2 (a <: b) a (a -: b)
 
-    let amount_sig = Variable.wire ~default:gnd ~width:7 in
+  let mod_100_upto_600 a =
+    let w = width a in
+    let k n = of_int ~width:w n in
+    let a0 = ge_sub_once a  (k 500) in
+    let a1 = ge_sub_once a0 (k 400) in
+    let a2 = ge_sub_once a1 (k 200) in
+    let a3 = ge_sub_once a2 (k 100) in
+    a3
+  ;;
 
-    let sub_if_ge x c =
-      let ge = ~:(x <:. c) in
-      mux2 ge (x -: of_int ~width:(width x) c) x
+  let create (_scope : Scope.t) (i : _ I.t) : _ O.t =
+    let state_w = 9 in
+    let r =
+      Reg_spec.override
+        (Reg_spec.create () ~clock:i.clk)
+        ~reset:i.reset
+        ~reset_to:(of_int ~width:state_w 50)
     in
 
-    let amount_mod100_12 =
-      amount
-      |> fun x -> sub_if_ge x 3200
-      |> fun x -> sub_if_ge x 1600
-      |> fun x -> sub_if_ge x 800
-      |> fun x -> sub_if_ge x 400
-      |> fun x -> sub_if_ge x 200
-      |> fun x -> sub_if_ge x 100
-    in
-    let amount_mod100 = uresize amount_mod100_12 ~width:7 in
+    let amount_9 = uresize i.amount state_w in
 
-    let left_as_add =
-      mux2
-        (amount_mod100 ==:. 0)
-        (of_int ~width:7 0)
-        ((of_int ~width:7 100) -: amount_mod100)
-    in
+    let state = wire state_w in
 
-    compile
-      [
-        amount_sig <-- amount_mod100;
-        if_ is_r
-          [ amount_sig <-- amount_mod100 ]
-          [ amount_sig <-- left_as_add ];
-      ];
+    let next_state_comb = mod_100_upto_600 (state +: amount_9) in
 
-    { norm_amount = amount_sig.value }
+    let d = mux2 i.valid next_state_comb state in
+    state <== reg r d;
+
+    let is_zero = i.valid &: (next_state_comb ==: zero state_w) in
+    { O.is_zero; next_state = next_state_comb }
 end
 
+
+module Accumulator = struct
+  let width = 16
+
   module I = struct
-    type 'a t = {
-      is_r: 'a;
-      amount: 'a [@bits 12]
-    } [@@deriving hardcaml]
+    type 'a t =
+      { clk   : 'a
+      ; reset : 'a
+      ; inc   : 'a
+      }
+    [@@deriving sexp_of, hardcaml]
   end
+
   module O = struct
-    type 'a t = {
-      norm_amount: 'a [@bits 7]
-    } [@@deriving hardcaml]
+    type 'a t = { count : 'a [@bits width] }
+    [@@deriving sexp_of, hardcaml]
   end
-  let create (_scope : Scope.t)
-  ({
-    is_r;
-    amount
-  }: _ I.t): _ O.t =
-    let open Always in
 
-    let sub_if_ge x c = 
-      let ge = ~:(x <:. c) in
-      mux2 ge (x -: of_int ~width:(width x) c) x
-    in (* helper function to reduce amount modulo 100, assumption being made that
-    max input amount is < 2^12 *)
-
-    let amount_mod100_12 =  amount
-  |> fun x -> sub_if_ge x 3200
-  |> fun x -> sub_if_ge x 1600
-  |> fun x -> sub_if_ge x 800
-  |> fun x -> sub_if_ge x 400
-  |> fun x -> sub_if_ge x 200
-  |> fun x -> sub_if_ge x 100
-  in
-  let amount_mod100 = uresize amount_mod100_12 ~width:7 in
-
-    let left_as_add =
-    mux2
-      (amount_mod100 ==:. 0)
-      (of_int ~width:7 0)
-      ((of_int ~width:7 100) -: amount_mod100)
+  let create (_scope : Scope.t) (i : _ I.t) : _ O.t =
+    let r =
+      Reg_spec.override
+        (Reg_spec.create ~clock:i.clk ~reset:i.reset ())
+        ~reset_to:(zero width)
     in
 
-    compile
-      [
-        amount_sig <-- amount_mod100;
-        if_ is_r
-          [ amount_sig <-- amount_mod100 ]
-          [ amount_sig <-- left_as_add ];
-      ];
-  { norm_amount = amount_sig.value }
+    let count = reg_fb r ~enable:i.inc ~width ~f:(fun q -> q +:. 1) in
+    { O.count }
+end
+
+module Top = struct
+  module I = struct
+    type 'a t =
+      { clk    : 'a
+      ; reset  : 'a
+      ; valid  : 'a
+      ; amount : 'a [@bits 7]
+      }
+    [@@deriving sexp_of, hardcaml]
+  end
+
+  module O = struct
+    type 'a t =
+      { is_zero    : 'a
+      ; next_state : 'a [@bits 9]
+      ; count      : 'a [@bits 16]
+      }
+    [@@deriving sexp_of, hardcaml]
+  end
+
+  let create (scope : Scope.t) (i : _ I.t) : _ O.t =
+    let zd =
+      Zero_detector.create scope
+        { Zero_detector.I.clk = i.clk
+        ; reset  = i.reset
+        ; valid  = i.valid
+        ; amount = i.amount
+        }
+    in
+    let acc =
+      Accumulator.create scope
+        { Accumulator.I.clk = i.clk
+        ; reset = i.reset
+        ; inc   = zd.is_zero
+        }
+    in
+    { O.is_zero = zd.is_zero
+    ; next_state = zd.next_state
+    ; count = acc.count
+    }
+end

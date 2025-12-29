@@ -1,4 +1,5 @@
 (library
- (name hardcaml_solutions)
- (public_name hardcaml_solutions)
- (libraries hardcaml))
+ (name day01)
+ (modules day01)
+ (libraries core hardcaml)
+ (preprocess (pps ppx_jane ppx_hardcaml)))
