@@ -1,9 +1,15 @@
 (executable
- (name acc_sim)
- (modules acc_sim)
+ (name test_day01_acc)
+ (modules test_day01_acc)
  (libraries core hardcaml hardcaml_waveterm day01))
 
 (executable
- (name zd_sim)
- (modules zd_sim)
+ (name test_day01_zd)
+ (modules test_day01_zd)
  (libraries core hardcaml hardcaml_waveterm day01))
+
+(executable
+ (name test_day01_pt1)
+ (modules test_day01_pt1)
+ (libraries core hardcaml hardcaml_waveterm day01)
+ (preprocess (pps ppx_jane)))
