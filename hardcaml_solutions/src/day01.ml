@@ -17,6 +17,7 @@ module Zero_detector = struct
     type 'a t =
       { is_zero    : 'a
       ; next_state : 'a [@bits 9]
+      ; state      : 'a [@bits 9]
       }
     [@@deriving sexp_of, hardcaml]
   end
@@ -37,9 +38,8 @@ module Zero_detector = struct
     let state_w = 9 in
     let r =
       Reg_spec.override
-        (Reg_spec.create ~clock:i.clk ())
-        ~reset:i.reset
-        ~reset_to:(of_int ~width:state_w 50)
+        (Reg_spec.create ~clock:i.clk ~clear:i.reset ())
+        ~clear_to:(of_int ~width:state_w 50)
     in
 
     let amount_9 = uresize i.amount state_w in
@@ -52,7 +52,7 @@ module Zero_detector = struct
     state <== reg r d;
 
     let is_zero = i.valid &: (next_state_comb ==: zero state_w) in
-    { O.is_zero; next_state = next_state_comb }
+    { O.is_zero; next_state = next_state_comb; state }
 end
 
 

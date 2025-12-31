@@ -2,3 +2,8 @@
  (name acc_sim)
  (modules acc_sim)
  (libraries core hardcaml hardcaml_waveterm day01))
+
+(executable
+ (name zd_sim)
+ (modules zd_sim)
+ (libraries core hardcaml hardcaml_waveterm day01))
